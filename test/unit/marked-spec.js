@@ -509,3 +509,29 @@ br
     ]);
   });
 });
+
+describe('ReDoS fixes in the shipped bundles', () => {
+  const bundles = {
+    'lib/marked.js': require('../../lib/marked.js'),
+    'marked.min.js': require('../../marked.min.js')
+  };
+
+  const inputs = {
+    // CVE-2022-21680: block.def cubic backtracking
+    'block.def': `[x]:${' '.repeat(1500)}x ${' '.repeat(1500)} x`,
+    // CVE-2022-21681: inline.reflink / inline.nolink (reflinkSearch) backtracking
+    'inline.reflink': `[x]: x\n\n[${'\\[\\]('.repeat(30)}[`
+  };
+
+  Object.keys(bundles).forEach((bundle) => {
+    Object.keys(inputs).forEach((rule) => {
+      it(`${bundle} should parse ${rule} redos input quickly`, () => {
+        const before = process.hrtime();
+        const actual = bundles[bundle](inputs[rule]);
+        const elapsed = process.hrtime(before);
+        expect(elapsed[0]).toBe(0);
+        expect(actual).toBe(marked(inputs[rule]));
+      });
+    });
+  });
+});
