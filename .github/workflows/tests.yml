@@ -1,9 +1,11 @@
 name: "Tests"
 on:
-  pull_request:
-  push:
-    branches:
-      - master
+  workflow_dispatch:
+    inputs:
+      test-filter:
+        description: 'Jasmine --filter regex; empty runs the full suite'
+        required: false
+        default: ''
 
 jobs:
   Test:
@@ -12,6 +14,7 @@ jobs:
       matrix:
         node_version: ['lts/*', 'node']
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout Code
         uses: actions/checkout@v2
@@ -21,14 +24,32 @@ jobs:
           node-version: ${{ matrix.node_version }}
       - name: Install Dependencies
         run: npm ci
+      - name: Minify
+        run: npm run minify
       - name: Run Unit Tests 👩🏽‍💻
+        if: ${{ inputs.test-filter == '' }}
         run: npm run test:unit
       - name: Run Spec Tests 👩🏽‍💻
+        if: ${{ inputs.test-filter == '' }}
         run: npm run test:specs
+      - name: Run Filtered Tests
+        if: ${{ inputs.test-filter != '' }}
+        run: npm test -- --filter="${{ inputs.test-filter }}"
+      - name: Pack
+        if: ${{ matrix.node_version == 'lts/*' }}
+        run: npm pack
+      - name: Upload Package
+        if: ${{ matrix.node_version == 'lts/*' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: marked-tgz
+          path: marked-*.tgz
+          if-no-files-found: error
 
   Lint:
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout Code
         uses: actions/checkout@v2
@@ -43,6 +64,7 @@ jobs:
       github.ref == 'refs/heads/master' &&
       github.event.repository.fork == false
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout Code
         uses: actions/checkout@v2
@@ -65,6 +87,7 @@ jobs:
   Skip:
     if: contains(github.event.head_commit.message, '[skip ci]')
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Skip CI 🚫
         run: echo skip ci
